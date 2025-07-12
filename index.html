@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Caminho da Fé</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="startScreen" class="screen active">
+            <h1>Caminho da Fé</h1>
+            <p>Ajude Apollo a restaurar a fé em Nova Jerusalém</p>
+            <button id="startBtn">Começar Jornada</button>
+        </div>
+        
+        <div id="gameScreen" class="screen">
+            <div id="gameUI">
+                <div id="hud">
+                    <div class="bar-container">
+                        <label>Vida:</label>
+                        <div class="bar" id="healthBar">
+                            <div class="bar-fill" id="healthFill"></div>
+                        </div>
+                    </div>
+                    <div class="bar-container">
+                        <label>Fé:</label>
+                        <div class="bar" id="faithBar">
+                            <div class="bar-fill" id="faithFill"></div>
+                        </div>
+                    </div>
+                    <div id="scoreContainer">
+                        <div>Pedras de Fé: <span id="faithStones">0</span></div>
+                        <div>Nível: <span id="currentLevel">1</span></div>
+                        <div>Pontos: <span id="score">0</span></div>
+                    </div>
+                </div>
+            </div>
+            <canvas id="gameCanvas" width="1200" height="600"></canvas>
+            <div id="controls">
+                <p>Use as setas do teclado para mover, ESPAÇO para pular, ENTER para atacar</p>
+            </div>
+        </div>
+        
+        <div id="levelComplete" class="screen">
+            <h2>Nível Concluído!</h2>
+            <p id="levelMessage"></p>
+            <button id="nextLevelBtn">Próximo Nível</button>
+        </div>
+        
+        <div id="gameOver" class="screen">
+            <h2>Fim de Jogo</h2>
+            <p id="gameOverMessage"></p>
+            <button id="restartBtn">Recomeçar</button>
+        </div>
+        
+        <div id="victory" class="screen">
+            <h2>Vitória!</h2>
+            <p class="bible-verse">Mateus 24:12-13</p>
+            <p>"Devido ao aumento da maldade, o amor de muitos esfriará, mas aquele que perseverar até o fim será salvo."</p>
+            <p>Apollo foi elevado ao céu e a fé foi restaurada em Nova Jerusalém!</p>
+            <button id="playAgainBtn">Jogar Novamente</button>
+        </div>
+    </div>
+    
+    <script src="game.js"></script>
+</body>
+</html>
