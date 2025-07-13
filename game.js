@@ -145,13 +145,51 @@ class Game {
         this.backgroundLayers = [];
         
         this.keys = {};
+        this.mobileControls = {};
         this.lastTime = 0;
         this.cameraOffset = 0;
         this.time = 0;
+        this.isMobile = this.detectMobile();
         
         this.initializeEvents();
         this.initializeBackground();
+        this.setupCanvas();
         this.showStartScreen();
+    }
+
+    detectMobile() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+               window.innerWidth <= 768;
+    }
+
+    setupCanvas() {
+        // Ajustar canvas para dispositivos móveis
+        if (this.isMobile) {
+            const container = document.getElementById('gameContainer');
+            const maxWidth = window.innerWidth - 20;
+            const maxHeight = window.innerHeight - 180;
+            
+            // Manter proporção
+            const aspectRatio = GAME_CONFIG.width / GAME_CONFIG.height;
+            let canvasWidth = maxWidth;
+            let canvasHeight = maxWidth / aspectRatio;
+            
+            if (canvasHeight > maxHeight) {
+                canvasHeight = maxHeight;
+                canvasWidth = maxHeight * aspectRatio;
+            }
+            
+            this.canvas.style.width = canvasWidth + 'px';
+            this.canvas.style.height = canvasHeight + 'px';
+            
+            // Ajustar escala interna
+            this.canvasScale = Math.min(canvasWidth / GAME_CONFIG.width, canvasHeight / GAME_CONFIG.height);
+        }
+        
+        // Prevenir zoom no iOS
+        document.addEventListener('gesturestart', (e) => e.preventDefault());
+        document.addEventListener('gesturechange', (e) => e.preventDefault());
+        document.addEventListener('gestureend', (e) => e.preventDefault());
     }
 
     initializeBackground() {
@@ -181,11 +219,16 @@ class Game {
         // Controles do teclado
         document.addEventListener('keydown', (e) => {
             this.keys[e.code] = true;
+            e.preventDefault();
         });
         
         document.addEventListener('keyup', (e) => {
             this.keys[e.code] = false;
+            e.preventDefault();
         });
+        
+        // Controles móveis
+        this.initializeMobileControls();
         
         // Botões da interface
         document.getElementById('startBtn').addEventListener('click', () => {
@@ -203,6 +246,105 @@ class Game {
         document.getElementById('playAgainBtn').addEventListener('click', () => {
             this.restartGame();
         });
+
+        // Redimensionamento de tela
+        window.addEventListener('resize', () => {
+            this.setupCanvas();
+        });
+        
+        // Orientação para mobile
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => {
+                this.setupCanvas();
+            }, 100);
+        });
+    }
+
+    initializeMobileControls() {
+        // Botão esquerda
+        const leftBtn = document.getElementById('leftBtn');
+        if (leftBtn) {
+            leftBtn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                this.mobileControls.left = true;
+            });
+            leftBtn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                this.mobileControls.left = false;
+            });
+            leftBtn.addEventListener('touchcancel', (e) => {
+                e.preventDefault();
+                this.mobileControls.left = false;
+            });
+        }
+
+        // Botão direita
+        const rightBtn = document.getElementById('rightBtn');
+        if (rightBtn) {
+            rightBtn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                this.mobileControls.right = true;
+            });
+            rightBtn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                this.mobileControls.right = false;
+            });
+            rightBtn.addEventListener('touchcancel', (e) => {
+                e.preventDefault();
+                this.mobileControls.right = false;
+            });
+        }
+
+        // Botão pular
+        const jumpBtn = document.getElementById('jumpBtn');
+        if (jumpBtn) {
+            jumpBtn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                this.mobileControls.jump = true;
+            });
+            jumpBtn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                this.mobileControls.jump = false;
+            });
+            jumpBtn.addEventListener('touchcancel', (e) => {
+                e.preventDefault();
+                this.mobileControls.jump = false;
+            });
+        }
+
+        // Botão atacar
+        const attackBtn = document.getElementById('attackBtn');
+        if (attackBtn) {
+            attackBtn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                this.mobileControls.attack = true;
+            });
+            attackBtn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                this.mobileControls.attack = false;
+            });
+            attackBtn.addEventListener('touchcancel', (e) => {
+                e.preventDefault();
+                this.mobileControls.attack = false;
+            });
+        }
+
+        // Prevenir scroll durante toque
+        document.addEventListener('touchmove', (e) => {
+            if (e.target.classList.contains('control-btn')) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+    }
+
+    getControls() {
+        // Combinar controles de teclado e mobile
+        return {
+            left: this.keys['ArrowLeft'] || this.mobileControls.left,
+            right: this.keys['ArrowRight'] || this.mobileControls.right,
+            jump: this.keys['Space'] || this.mobileControls.jump,
+            attack: this.keys['Enter'] || this.mobileControls.attack
+        };
     }
 
     startGame() {
@@ -264,7 +406,7 @@ class Game {
     }
 
     initializeLevelParticles(particleType) {
-        const particleCount = 20;
+        const particleCount = this.isMobile ? 10 : 20; // Menos partículas no mobile
         for (let i = 0; i < particleCount; i++) {
             this.particles.push(new Particle(
                 Math.random() * GAME_CONFIG.width,
@@ -304,8 +446,10 @@ class Game {
     }
 
     update(deltaTime) {
+        const controls = this.getControls();
+        
         // Atualizar jogador
-        this.player.update(this.keys, this.platforms, deltaTime);
+        this.player.update(controls, this.platforms, deltaTime);
         
         // Atualizar câmera (parallax suave)
         this.cameraOffset = this.player.x - GAME_CONFIG.width / 2;
@@ -358,7 +502,7 @@ class Game {
         });
         
         // Verificar ataques do jogador
-        if (this.keys['Enter'] && this.player.canAttack) {
+        if (controls.attack && this.player.canAttack) {
             this.player.attack();
             this.enemies.forEach((enemy, index) => {
                 if (this.checkCollision(this.player, enemy)) {
@@ -582,16 +726,16 @@ class Player {
         this.jumpAnimation = 0;
     }
 
-    update(keys, platforms, deltaTime) {
+    update(controls, platforms, deltaTime) {
         // Atualizar animações
         this.animationFrame += deltaTime * 0.01;
         
         // Movimento horizontal
-        if (keys['ArrowLeft']) {
+        if (controls.left) {
             this.velocityX = -GAME_CONFIG.playerSpeed;
             this.direction = -1;
             this.walkCycle += deltaTime * 0.01;
-        } else if (keys['ArrowRight']) {
+        } else if (controls.right) {
             this.velocityX = GAME_CONFIG.playerSpeed;
             this.direction = 1;
             this.walkCycle += deltaTime * 0.01;
@@ -601,7 +745,7 @@ class Player {
         }
 
         // Pulo
-        if (keys['Space'] && this.onGround) {
+        if (controls.jump && this.onGround) {
             this.velocityY = -GAME_CONFIG.jumpPower;
             this.onGround = false;
             this.jumpAnimation = 1;

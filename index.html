@@ -2,9 +2,14 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#191970">
     <title>Caminho da Fé</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
 </head>
 <body>
     <div id="gameContainer">
@@ -37,7 +42,30 @@
                 </div>
             </div>
             <canvas id="gameCanvas" width="1200" height="600"></canvas>
-            <div id="controls">
+            
+            <!-- Controles Mobile -->
+            <div id="mobileControls" class="mobile-controls">
+                <div class="control-area left-controls">
+                    <div class="movement-pad">
+                        <button id="leftBtn" class="control-btn direction-btn">
+                            <span>←</span>
+                        </button>
+                        <button id="rightBtn" class="control-btn direction-btn">
+                            <span>→</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="control-area right-controls">
+                    <button id="jumpBtn" class="control-btn action-btn jump-btn">
+                        <span>PULAR</span>
+                    </button>
+                    <button id="attackBtn" class="control-btn action-btn attack-btn">
+                        <span>ATACAR</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div id="controls" class="desktop-controls">
                 <p>Use as setas do teclado para mover, ESPAÇO para pular, ENTER para atacar</p>
             </div>
         </div>
