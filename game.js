@@ -18,12 +18,18 @@ const GAME_STATES = {
     VICTORY: 'victory'
 };
 
-// Dados dos níveis
+// Dados dos níveis com temas visuais inspirados em Alto's Odyssey
 const LEVELS = {
     1: {
         name: "A Cidade em Ruínas",
         description: "Apollo deve navegar pela cidade em ruínas, coletando pedras de fé e lutando contra inimigos.",
-        background: "#8B4513",
+        theme: {
+            skyGradient: ["#FF6B6B", "#FF8E8E", "#FFB3B3"],
+            groundColor: "#8B4513",
+            accentColor: "#D2691E",
+            lightColor: "#FFD700",
+            particles: "dust"
+        },
         enemyCount: 3,
         faithStonesNeeded: 5,
         platforms: [
@@ -37,7 +43,13 @@ const LEVELS = {
     2: {
         name: "O Mercado das Sombras",
         description: "Apollo deve atravessar o mercado, evitando armadilhas e inimigos.",
-        background: "#4B0082",
+        theme: {
+            skyGradient: ["#4B0082", "#663399", "#8A2BE2"],
+            groundColor: "#2F2F2F",
+            accentColor: "#4B0082",
+            lightColor: "#9370DB",
+            particles: "shadows"
+        },
         enemyCount: 4,
         faithStonesNeeded: 6,
         platforms: [
@@ -53,7 +65,13 @@ const LEVELS = {
     3: {
         name: "A Igreja em Perigo",
         description: "Apollo deve defender a igreja contra uma horda de inimigos.",
-        background: "#191970",
+        theme: {
+            skyGradient: ["#191970", "#4169E1", "#6495ED"],
+            groundColor: "#708090",
+            accentColor: "#4682B4",
+            lightColor: "#FFD700",
+            particles: "holy"
+        },
         enemyCount: 6,
         faithStonesNeeded: 8,
         platforms: [
@@ -67,7 +85,13 @@ const LEVELS = {
     4: {
         name: "O Deserto da Dúvida",
         description: "Apollo deve atravessar um deserto, enfrentando desafios e inimigos.",
-        background: "#8B4513",
+        theme: {
+            skyGradient: ["#FF4500", "#FF6347", "#FFA500"],
+            groundColor: "#DEB887",
+            accentColor: "#D2691E",
+            lightColor: "#FFD700",
+            particles: "sand"
+        },
         enemyCount: 5,
         faithStonesNeeded: 10,
         platforms: [
@@ -82,7 +106,13 @@ const LEVELS = {
     5: {
         name: "A Montanha da Fé",
         description: "Apollo deve subir a montanha para restaurar a fé em Nova Jerusalém.",
-        background: "#2F4F4F",
+        theme: {
+            skyGradient: ["#2F4F4F", "#4682B4", "#87CEEB"],
+            groundColor: "#696969",
+            accentColor: "#708090",
+            lightColor: "#FFD700",
+            particles: "divine"
+        },
         enemyCount: 7,
         faithStonesNeeded: 12,
         platforms: [
@@ -111,12 +141,40 @@ class Game {
         this.collectibles = [];
         this.platforms = [];
         this.angels = [];
+        this.particles = [];
+        this.backgroundLayers = [];
         
         this.keys = {};
         this.lastTime = 0;
+        this.cameraOffset = 0;
+        this.time = 0;
         
         this.initializeEvents();
+        this.initializeBackground();
         this.showStartScreen();
+    }
+
+    initializeBackground() {
+        // Camadas de parallax inspiradas em Alto's Odyssey
+        this.backgroundLayers = [
+            { speed: 0.1, elements: [] }, // Camada mais distante
+            { speed: 0.3, elements: [] }, // Camada média
+            { speed: 0.6, elements: [] }  // Camada mais próxima
+        ];
+        
+        // Gerar elementos para cada camada
+        for (let layer = 0; layer < 3; layer++) {
+            const layerData = this.backgroundLayers[layer];
+            for (let i = 0; i < 5; i++) {
+                layerData.elements.push({
+                    x: Math.random() * GAME_CONFIG.width * 2,
+                    y: 100 + Math.random() * 200,
+                    width: 50 + Math.random() * 100,
+                    height: 30 + Math.random() * 60,
+                    opacity: 0.3 + Math.random() * 0.4
+                });
+            }
+        }
     }
 
     initializeEvents() {
@@ -163,12 +221,14 @@ class Game {
         this.collectibles = [];
         this.platforms = [];
         this.angels = [];
+        this.particles = [];
         
         // Resetar jogador
         this.player.x = 100;
         this.player.y = 500;
         this.player.health = 100;
         this.player.faith = 100;
+        this.player.animationFrame = 0;
         
         // Carregar plataformas
         this.platforms = level.platforms.map(p => new Platform(p.x, p.y, p.width, p.height));
@@ -196,13 +256,27 @@ class Game {
             this.angels.push(new Angel(600, 200));
         }
         
+        // Inicializar partículas do nível
+        this.initializeLevelParticles(level.theme.particles);
+        
         this.updateHUD();
         this.showLevelInfo(level);
     }
 
+    initializeLevelParticles(particleType) {
+        const particleCount = 20;
+        for (let i = 0; i < particleCount; i++) {
+            this.particles.push(new Particle(
+                Math.random() * GAME_CONFIG.width,
+                Math.random() * GAME_CONFIG.height,
+                particleType
+            ));
+        }
+    }
+
     showLevelInfo(level) {
         const levelInfo = document.createElement('div');
-        levelInfo.className = 'level-info';
+        levelInfo.className = 'level-info fade-in';
         levelInfo.innerHTML = `
             <h3>Nível ${this.currentLevel}</h3>
             <h4>${level.name}</h4>
@@ -221,6 +295,7 @@ class Game {
         
         const deltaTime = currentTime - this.lastTime;
         this.lastTime = currentTime;
+        this.time += deltaTime;
         
         this.update(deltaTime);
         this.render();
@@ -230,15 +305,23 @@ class Game {
 
     update(deltaTime) {
         // Atualizar jogador
-        this.player.update(this.keys, this.platforms);
+        this.player.update(this.keys, this.platforms, deltaTime);
+        
+        // Atualizar câmera (parallax suave)
+        this.cameraOffset = this.player.x - GAME_CONFIG.width / 2;
+        this.cameraOffset = Math.max(0, Math.min(this.cameraOffset, GAME_CONFIG.width));
+        
+        // Atualizar partículas
+        this.particles.forEach(particle => particle.update(deltaTime));
         
         // Atualizar inimigos
         this.enemies.forEach(enemy => {
-            enemy.update(this.platforms);
+            enemy.update(this.platforms, deltaTime);
             
             // Verificar colisão com jogador
             if (this.checkCollision(this.player, enemy)) {
                 this.player.takeDamage(10);
+                this.createImpactParticles(this.player.x, this.player.y);
                 if (this.player.health <= 0) {
                     this.gameOver();
                 }
@@ -252,6 +335,7 @@ class Game {
                 this.faithStones++;
                 this.score += 100;
                 this.player.faith = Math.min(100, this.player.faith + 10);
+                this.createCollectParticles(item.x, item.y);
                 
                 // Verificar se coletou todas as pedras de fé
                 const level = LEVELS[this.currentLevel];
@@ -263,12 +347,13 @@ class Game {
         
         // Atualizar anjos
         this.angels.forEach(angel => {
-            angel.update();
+            angel.update(deltaTime);
             
             // Verificar colisão com jogador (cura)
             if (this.checkCollision(this.player, angel)) {
                 this.player.health = Math.min(100, this.player.health + 20);
                 this.player.faith = Math.min(100, this.player.faith + 30);
+                this.createHealParticles(this.player.x, this.player.y);
             }
         });
         
@@ -279,6 +364,7 @@ class Game {
                 if (this.checkCollision(this.player, enemy)) {
                     this.enemies.splice(index, 1);
                     this.score += 50;
+                    this.createDefeatParticles(enemy.x, enemy.y);
                 }
             });
         }
@@ -290,25 +376,109 @@ class Game {
         // Limpar tela
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // Desenhar fundo do nível
-        const level = LEVELS[this.currentLevel];
-        this.ctx.fillStyle = level.background;
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        // Renderizar fundo com parallax
+        this.renderBackground();
+        
+        // Salvar contexto para aplicar offset da câmera
+        this.ctx.save();
+        this.ctx.translate(-this.cameraOffset * 0.5, 0);
         
         // Desenhar plataformas
         this.platforms.forEach(platform => platform.render(this.ctx));
         
         // Desenhar coletáveis
-        this.collectibles.forEach(item => item.render(this.ctx));
+        this.collectibles.forEach(item => item.render(this.ctx, this.time));
         
         // Desenhar anjos
-        this.angels.forEach(angel => angel.render(this.ctx));
+        this.angels.forEach(angel => angel.render(this.ctx, this.time));
         
         // Desenhar inimigos
-        this.enemies.forEach(enemy => enemy.render(this.ctx));
+        this.enemies.forEach(enemy => enemy.render(this.ctx, this.time));
         
         // Desenhar jogador
-        this.player.render(this.ctx);
+        this.player.render(this.ctx, this.time);
+        
+        // Restaurar contexto
+        this.ctx.restore();
+        
+        // Desenhar partículas (sem offset da câmera)
+        this.particles.forEach(particle => particle.render(this.ctx));
+        
+        // Renderizar efeitos de luz
+        this.renderLightingEffects();
+    }
+
+    renderBackground() {
+        const level = LEVELS[this.currentLevel];
+        const theme = level.theme;
+        
+        // Gradiente do céu
+        const gradient = this.ctx.createLinearGradient(0, 0, 0, GAME_CONFIG.height);
+        gradient.addColorStop(0, theme.skyGradient[0]);
+        gradient.addColorStop(0.5, theme.skyGradient[1]);
+        gradient.addColorStop(1, theme.skyGradient[2]);
+        
+        this.ctx.fillStyle = gradient;
+        this.ctx.fillRect(0, 0, GAME_CONFIG.width, GAME_CONFIG.height);
+        
+        // Renderizar camadas de parallax
+        this.backgroundLayers.forEach((layer, index) => {
+            this.ctx.save();
+            this.ctx.translate(-this.cameraOffset * layer.speed, 0);
+            
+            layer.elements.forEach(element => {
+                this.ctx.fillStyle = `rgba(${this.hexToRgb(theme.accentColor)}, ${element.opacity})`;
+                this.ctx.fillRect(element.x, element.y, element.width, element.height);
+            });
+            
+            this.ctx.restore();
+        });
+    }
+
+    renderLightingEffects() {
+        // Efeito de luz suave
+        const level = LEVELS[this.currentLevel];
+        const lightGradient = this.ctx.createRadialGradient(
+            GAME_CONFIG.width / 2, GAME_CONFIG.height / 3, 0,
+            GAME_CONFIG.width / 2, GAME_CONFIG.height / 3, GAME_CONFIG.width
+        );
+        
+        lightGradient.addColorStop(0, 'rgba(255, 215, 0, 0.1)');
+        lightGradient.addColorStop(1, 'rgba(255, 215, 0, 0)');
+        
+        this.ctx.fillStyle = lightGradient;
+        this.ctx.fillRect(0, 0, GAME_CONFIG.width, GAME_CONFIG.height);
+    }
+
+    hexToRgb(hex) {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? 
+            `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : 
+            '0, 0, 0';
+    }
+
+    createImpactParticles(x, y) {
+        for (let i = 0; i < 5; i++) {
+            this.particles.push(new Particle(x, y, 'impact'));
+        }
+    }
+
+    createCollectParticles(x, y) {
+        for (let i = 0; i < 8; i++) {
+            this.particles.push(new Particle(x, y, 'collect'));
+        }
+    }
+
+    createHealParticles(x, y) {
+        for (let i = 0; i < 6; i++) {
+            this.particles.push(new Particle(x, y, 'heal'));
+        }
+    }
+
+    createDefeatParticles(x, y) {
+        for (let i = 0; i < 10; i++) {
+            this.particles.push(new Particle(x, y, 'defeat'));
+        }
     }
 
     checkCollision(obj1, obj2) {
@@ -392,7 +562,7 @@ class Game {
     }
 }
 
-// Classe do jogador Apollo
+// Classe do jogador Apollo com gráficos melhorados
 class Player {
     constructor(x, y) {
         this.x = x;
@@ -406,29 +576,44 @@ class Player {
         this.onGround = false;
         this.canAttack = true;
         this.attackCooldown = 0;
-        this.direction = 1; // 1 para direita, -1 para esquerda
+        this.direction = 1;
+        this.animationFrame = 0;
+        this.walkCycle = 0;
+        this.jumpAnimation = 0;
     }
 
-    update(keys, platforms) {
+    update(keys, platforms, deltaTime) {
+        // Atualizar animações
+        this.animationFrame += deltaTime * 0.01;
+        
         // Movimento horizontal
         if (keys['ArrowLeft']) {
             this.velocityX = -GAME_CONFIG.playerSpeed;
             this.direction = -1;
+            this.walkCycle += deltaTime * 0.01;
         } else if (keys['ArrowRight']) {
             this.velocityX = GAME_CONFIG.playerSpeed;
             this.direction = 1;
+            this.walkCycle += deltaTime * 0.01;
         } else {
             this.velocityX = 0;
+            this.walkCycle = 0;
         }
 
         // Pulo
         if (keys['Space'] && this.onGround) {
             this.velocityY = -GAME_CONFIG.jumpPower;
             this.onGround = false;
+            this.jumpAnimation = 1;
         }
 
         // Aplicar gravidade
         this.velocityY += GAME_CONFIG.gravity;
+        
+        // Reduzir animação de pulo
+        if (this.jumpAnimation > 0) {
+            this.jumpAnimation -= deltaTime * 0.02;
+        }
 
         // Atualizar posição
         this.x += this.velocityX;
@@ -442,11 +627,11 @@ class Player {
                 this.y < platform.y + platform.height &&
                 this.y + this.height > platform.y) {
                 
-                // Colisão por cima
                 if (this.velocityY > 0 && this.y < platform.y) {
                     this.y = platform.y - this.height;
                     this.velocityY = 0;
                     this.onGround = true;
+                    this.jumpAnimation = 0;
                 }
             }
         });
@@ -480,52 +665,90 @@ class Player {
         this.faith = Math.max(0, this.faith - damage / 2);
     }
 
-    render(ctx) {
-        // Corpo
-        ctx.fillStyle = '#8B4513';
-        ctx.fillRect(this.x + 8, this.y + 15, 14, 20);
+    render(ctx, time) {
+        ctx.save();
+        
+        // Aplicar balanço suave durante caminhada
+        const walkOffset = Math.sin(this.walkCycle * 10) * 2;
+        const jumpOffset = this.jumpAnimation * -5;
+        
+        ctx.translate(this.x + this.width/2, this.y + this.height/2);
+        ctx.scale(this.direction, 1);
+        ctx.translate(-this.width/2, -this.height/2 + walkOffset + jumpOffset);
+        
+        // Corpo com gradiente
+        const bodyGradient = ctx.createLinearGradient(0, 15, 0, 35);
+        bodyGradient.addColorStop(0, '#A0522D');
+        bodyGradient.addColorStop(1, '#8B4513');
+        ctx.fillStyle = bodyGradient;
+        ctx.fillRect(8, 15, 14, 20);
 
-        // Cabeça
-        ctx.fillStyle = '#FDBCB4';
-        ctx.fillRect(this.x + 10, this.y, 10, 12);
+        // Cabeça com gradiente
+        const headGradient = ctx.createLinearGradient(0, 0, 0, 12);
+        headGradient.addColorStop(0, '#FDBCB4');
+        headGradient.addColorStop(1, '#F4A460');
+        ctx.fillStyle = headGradient;
+        ctx.fillRect(10, 0, 10, 12);
 
-        // Olhos
+        // Olhos com brilho
         ctx.fillStyle = '#000';
-        ctx.fillRect(this.x + 12, this.y + 3, 2, 2);
-        ctx.fillRect(this.x + 16, this.y + 3, 2, 2);
+        ctx.fillRect(12, 3, 2, 2);
+        ctx.fillRect(16, 3, 2, 2);
+        
+        // Brilho nos olhos
+        ctx.fillStyle = '#FFF';
+        ctx.fillRect(12.5, 3.5, 1, 1);
+        ctx.fillRect(16.5, 3.5, 1, 1);
 
         // Boca
-        ctx.fillStyle = '#000';
-        ctx.fillRect(this.x + 13, this.y + 7, 4, 1);
+        ctx.fillStyle = '#8B4513';
+        ctx.fillRect(13, 7, 4, 1);
 
-        // Braços
+        // Braços com movimento
+        const armSwing = Math.sin(this.walkCycle * 8) * 3;
         ctx.fillStyle = '#FDBCB4';
-        ctx.fillRect(this.x + 5, this.y + 18, 5, 10);
-        ctx.fillRect(this.x + 20, this.y + 18, 5, 10);
+        ctx.fillRect(5, 18 + armSwing, 5, 10);
+        ctx.fillRect(20, 18 - armSwing, 5, 10);
 
-        // Pernas
+        // Pernas com movimento
+        const legSwing = Math.sin(this.walkCycle * 12) * 4;
         ctx.fillStyle = '#000080';
-        ctx.fillRect(this.x + 10, this.y + 35, 4, 5);
-        ctx.fillRect(this.x + 16, this.y + 35, 4, 5);
+        ctx.fillRect(10, 35 + legSwing, 4, 5);
+        ctx.fillRect(16, 35 - legSwing, 4, 5);
 
-        // Auréola (se a fé estiver alta)
+        // Auréola com efeito pulsante
         if (this.faith > 80) {
-            ctx.strokeStyle = '#FFD700';
-            ctx.lineWidth = 2;
+            const haloSize = 8 + Math.sin(time * 0.005) * 2;
+            const haloOpacity = 0.6 + Math.sin(time * 0.003) * 0.3;
+            
+            ctx.strokeStyle = `rgba(255, 215, 0, ${haloOpacity})`;
+            ctx.lineWidth = 3;
             ctx.beginPath();
-            ctx.arc(this.x + 15, this.y - 5, 8, 0, 2 * Math.PI);
+            ctx.arc(15, -5, haloSize, 0, 2 * Math.PI);
+            ctx.stroke();
+            
+            // Brilho interno
+            ctx.strokeStyle = `rgba(255, 255, 255, ${haloOpacity * 0.5})`;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(15, -5, haloSize - 2, 0, 2 * Math.PI);
             ctx.stroke();
         }
 
-        // Indicador de ataque
+        // Indicador de ataque com efeito
         if (!this.canAttack) {
-            ctx.fillStyle = '#FFD700';
-            ctx.fillRect(this.x + this.direction * 25, this.y + 10, 15, 3);
+            const attackGradient = ctx.createLinearGradient(0, 0, 15, 0);
+            attackGradient.addColorStop(0, 'rgba(255, 215, 0, 0.8)');
+            attackGradient.addColorStop(1, 'rgba(255, 215, 0, 0)');
+            ctx.fillStyle = attackGradient;
+            ctx.fillRect(25, 10, 15, 3);
         }
+        
+        ctx.restore();
     }
 }
 
-// Classe dos inimigos
+// Classe dos inimigos com gráficos melhorados
 class Enemy {
     constructor(x, y) {
         this.x = x;
@@ -536,9 +759,12 @@ class Enemy {
         this.velocityY = 0;
         this.health = 50;
         this.onGround = false;
+        this.animationFrame = 0;
     }
 
-    update(platforms) {
+    update(platforms, deltaTime) {
+        this.animationFrame += deltaTime * 0.01;
+        
         // Aplicar gravidade
         this.velocityY += GAME_CONFIG.gravity;
 
@@ -562,7 +788,7 @@ class Enemy {
             }
         });
 
-        // Inverter direção nas bordas das plataformas
+        // Inverter direção nas bordas
         if (this.onGround) {
             let onPlatform = false;
             platforms.forEach(platform => {
@@ -578,39 +804,59 @@ class Enemy {
             }
         }
 
-        // Limites da tela
         if (this.x < 0 || this.x + this.width > GAME_CONFIG.width) {
             this.velocityX *= -1;
         }
     }
 
-    render(ctx) {
-        // Corpo (sombrio)
-        ctx.fillStyle = '#2F2F2F';
+    render(ctx, time) {
+        ctx.save();
+        
+        // Efeito de sombra pulsante
+        const shadowIntensity = 0.5 + Math.sin(time * 0.003) * 0.3;
+        
+        // Corpo sombrio com gradiente
+        const bodyGradient = ctx.createLinearGradient(0, 12, 0, 27);
+        bodyGradient.addColorStop(0, '#1C1C1C');
+        bodyGradient.addColorStop(1, '#2F2F2F');
+        ctx.fillStyle = bodyGradient;
         ctx.fillRect(this.x + 6, this.y + 12, 13, 15);
 
         // Cabeça
-        ctx.fillStyle = '#1C1C1C';
+        ctx.fillStyle = '#0F0F0F';
         ctx.fillRect(this.x + 8, this.y, 9, 10);
 
-        // Olhos vermelhos
-        ctx.fillStyle = '#FF0000';
+        // Olhos vermelhos com brilho
+        const eyeGlow = 0.7 + Math.sin(time * 0.008) * 0.3;
+        ctx.fillStyle = `rgba(255, 0, 0, ${eyeGlow})`;
         ctx.fillRect(this.x + 10, this.y + 3, 2, 2);
         ctx.fillRect(this.x + 13, this.y + 3, 2, 2);
+        
+        // Brilho dos olhos
+        ctx.fillStyle = `rgba(255, 100, 100, ${eyeGlow * 0.5})`;
+        ctx.fillRect(this.x + 9, this.y + 2, 4, 4);
+        ctx.fillRect(this.x + 12, this.y + 2, 4, 4);
 
-        // Braços
+        // Braços com movimento
+        const armMovement = Math.sin(this.animationFrame * 5) * 2;
         ctx.fillStyle = '#2F2F2F';
-        ctx.fillRect(this.x + 3, this.y + 15, 4, 8);
-        ctx.fillRect(this.x + 18, this.y + 15, 4, 8);
+        ctx.fillRect(this.x + 3, this.y + 15 + armMovement, 4, 8);
+        ctx.fillRect(this.x + 18, this.y + 15 - armMovement, 4, 8);
 
         // Pernas
         ctx.fillStyle = '#1C1C1C';
         ctx.fillRect(this.x + 8, this.y + 27, 3, 3);
         ctx.fillRect(this.x + 14, this.y + 27, 3, 3);
+
+        // Aura sombria
+        ctx.fillStyle = `rgba(0, 0, 0, ${shadowIntensity * 0.2})`;
+        ctx.fillRect(this.x - 2, this.y - 2, this.width + 4, this.height + 4);
+        
+        ctx.restore();
     }
 }
 
-// Classe dos anjos
+// Classe dos anjos com gráficos melhorados
 class Angel {
     constructor(x, y) {
         this.x = x;
@@ -619,38 +865,79 @@ class Angel {
         this.height = 45;
         this.floatOffset = 0;
         this.floatSpeed = 0.05;
+        this.wingAnimation = 0;
+        this.baseY = y;
     }
 
-    update() {
+    update(deltaTime) {
         this.floatOffset += this.floatSpeed;
-        this.y += Math.sin(this.floatOffset) * 0.5;
+        this.wingAnimation += deltaTime * 0.02;
+        this.y = this.baseY + Math.sin(this.floatOffset) * 3;
     }
 
-    render(ctx) {
-        // Corpo branco
-        ctx.fillStyle = '#FFFFFF';
+    render(ctx, time) {
+        ctx.save();
+        
+        // Efeito de luz divina
+        const lightIntensity = 0.3 + Math.sin(time * 0.003) * 0.2;
+        const lightGradient = ctx.createRadialGradient(
+            this.x + this.width/2, this.y + this.height/2, 0,
+            this.x + this.width/2, this.y + this.height/2, 50
+        );
+        lightGradient.addColorStop(0, `rgba(255, 255, 255, ${lightIntensity})`);
+        lightGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = lightGradient;
+        ctx.fillRect(this.x - 20, this.y - 20, this.width + 40, this.height + 40);
+
+        // Corpo branco com gradiente
+        const bodyGradient = ctx.createLinearGradient(0, this.y + 15, 0, this.y + 40);
+        bodyGradient.addColorStop(0, '#FFFFFF');
+        bodyGradient.addColorStop(1, '#F0F8FF');
+        ctx.fillStyle = bodyGradient;
         ctx.fillRect(this.x + 10, this.y + 15, 15, 25);
 
         // Cabeça
         ctx.fillStyle = '#FDBCB4';
         ctx.fillRect(this.x + 12, this.y, 11, 12);
 
-        // Olhos
+        // Olhos azuis celestiais
         ctx.fillStyle = '#4682B4';
         ctx.fillRect(this.x + 14, this.y + 3, 2, 2);
         ctx.fillRect(this.x + 19, this.y + 3, 2, 2);
+        
+        // Brilho nos olhos
+        ctx.fillStyle = '#87CEEB';
+        ctx.fillRect(this.x + 14.5, this.y + 3.5, 1, 1);
+        ctx.fillRect(this.x + 19.5, this.y + 3.5, 1, 1);
 
-        // Auréola
-        ctx.strokeStyle = '#FFD700';
-        ctx.lineWidth = 3;
+        // Auréola com efeito pulsante
+        const haloSize = 10 + Math.sin(time * 0.005) * 2;
+        const haloOpacity = 0.8 + Math.sin(time * 0.003) * 0.2;
+        
+        ctx.strokeStyle = `rgba(255, 215, 0, ${haloOpacity})`;
+        ctx.lineWidth = 4;
         ctx.beginPath();
-        ctx.arc(this.x + 17, this.y - 5, 10, 0, 2 * Math.PI);
+        ctx.arc(this.x + 17, this.y - 5, haloSize, 0, 2 * Math.PI);
+        ctx.stroke();
+        
+        // Brilho interno da auréola
+        ctx.strokeStyle = `rgba(255, 255, 255, ${haloOpacity * 0.6})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(this.x + 17, this.y - 5, haloSize - 2, 0, 2 * Math.PI);
         ctx.stroke();
 
-        // Asas
-        ctx.fillStyle = '#E6E6FA';
-        ctx.fillRect(this.x, this.y + 10, 8, 20);
-        ctx.fillRect(this.x + 27, this.y + 10, 8, 20);
+        // Asas com movimento
+        const wingFlap = Math.sin(this.wingAnimation * 15) * 3;
+        const wingGradient = ctx.createLinearGradient(0, this.y + 10, 0, this.y + 30);
+        wingGradient.addColorStop(0, 'rgba(230, 230, 250, 0.9)');
+        wingGradient.addColorStop(1, 'rgba(230, 230, 250, 0.6)');
+        ctx.fillStyle = wingGradient;
+        
+        // Asa esquerda
+        ctx.fillRect(this.x - wingFlap, this.y + 10, 8, 20);
+        // Asa direita
+        ctx.fillRect(this.x + 27 + wingFlap, this.y + 10, 8, 20);
 
         // Braços
         ctx.fillStyle = '#FDBCB4';
@@ -661,10 +948,12 @@ class Angel {
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(this.x + 12, this.y + 40, 4, 5);
         ctx.fillRect(this.x + 19, this.y + 40, 4, 5);
+        
+        ctx.restore();
     }
 }
 
-// Classe das pedras de fé
+// Classe das pedras de fé com gráficos melhorados
 class FaithStone {
     constructor(x, y) {
         this.x = x;
@@ -673,28 +962,59 @@ class FaithStone {
         this.height = 20;
         this.glow = 0;
         this.glowSpeed = 0.1;
+        this.rotation = 0;
+        this.baseY = y;
     }
 
-    render(ctx) {
+    render(ctx, time) {
         this.glow += this.glowSpeed;
+        this.rotation += 0.02;
         
-        // Efeito de brilho
-        const glowIntensity = Math.sin(this.glow) * 0.3 + 0.7;
-        ctx.fillStyle = `rgba(135, 206, 235, ${glowIntensity})`;
-        ctx.fillRect(this.x - 5, this.y - 5, this.width + 10, this.height + 10);
+        // Flutuação suave
+        const floatY = this.baseY + Math.sin(time * 0.003) * 2;
         
-        // Pedra
-        ctx.fillStyle = '#87CEEB';
-        ctx.fillRect(this.x, this.y, this.width, this.height);
+        ctx.save();
+        ctx.translate(this.x + this.width/2, floatY + this.height/2);
+        ctx.rotate(this.rotation);
         
-        // Símbolo da cruz
-        ctx.fillStyle = '#FFD700';
-        ctx.fillRect(this.x + 8, this.y + 4, 4, 12);
-        ctx.fillRect(this.x + 4, this.y + 8, 12, 4);
+        // Efeito de brilho externo
+        const glowIntensity = 0.4 + Math.sin(this.glow) * 0.3;
+        const glowGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, 25);
+        glowGradient.addColorStop(0, `rgba(135, 206, 235, ${glowIntensity})`);
+        glowGradient.addColorStop(1, 'rgba(135, 206, 235, 0)');
+        ctx.fillStyle = glowGradient;
+        ctx.fillRect(-25, -25, 50, 50);
+        
+        // Pedra principal com gradiente
+        const stoneGradient = ctx.createLinearGradient(-10, -10, 10, 10);
+        stoneGradient.addColorStop(0, '#87CEEB');
+        stoneGradient.addColorStop(0.5, '#4682B4');
+        stoneGradient.addColorStop(1, '#5F9EA0');
+        ctx.fillStyle = stoneGradient;
+        ctx.fillRect(-this.width/2, -this.height/2, this.width, this.height);
+        
+        // Brilho interno
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.fillRect(-this.width/2, -this.height/2, this.width, 3);
+        
+        // Símbolo da cruz com brilho
+        const crossGradient = ctx.createLinearGradient(0, -6, 0, 6);
+        crossGradient.addColorStop(0, '#FFD700');
+        crossGradient.addColorStop(1, '#FFA500');
+        ctx.fillStyle = crossGradient;
+        ctx.fillRect(-2, -6, 4, 12);
+        ctx.fillRect(-6, -2, 12, 4);
+        
+        // Brilho da cruz
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.fillRect(-1, -6, 2, 12);
+        ctx.fillRect(-6, -1, 12, 2);
+        
+        ctx.restore();
     }
 }
 
-// Classe das plataformas
+// Classe das plataformas com gráficos melhorados
 class Platform {
     constructor(x, y, width, height) {
         this.x = x;
@@ -704,17 +1024,88 @@ class Platform {
     }
 
     render(ctx) {
-        // Plataforma principal
-        ctx.fillStyle = '#8B4513';
+        // Plataforma principal com gradiente
+        const platformGradient = ctx.createLinearGradient(0, this.y, 0, this.y + this.height);
+        platformGradient.addColorStop(0, '#DEB887');
+        platformGradient.addColorStop(0.3, '#D2691E');
+        platformGradient.addColorStop(1, '#8B4513');
+        ctx.fillStyle = platformGradient;
         ctx.fillRect(this.x, this.y, this.width, this.height);
         
-        // Borda superior
-        ctx.fillStyle = '#DEB887';
+        // Borda superior brilhante
+        ctx.fillStyle = '#F4A460';
         ctx.fillRect(this.x, this.y, this.width, 3);
         
+        // Textura da plataforma
+        ctx.fillStyle = 'rgba(139, 69, 19, 0.3)';
+        for (let i = 0; i < this.width; i += 10) {
+            ctx.fillRect(this.x + i, this.y + 5, 1, this.height - 10);
+        }
+        
         // Sombra
-        ctx.fillStyle = '#654321';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
         ctx.fillRect(this.x + 2, this.y + this.height - 5, this.width - 2, 5);
+    }
+}
+
+// Classe de partículas para efeitos visuais
+class Particle {
+    constructor(x, y, type) {
+        this.x = x;
+        this.y = y;
+        this.type = type;
+        this.life = 1;
+        this.maxLife = 1;
+        this.velocityX = (Math.random() - 0.5) * 4;
+        this.velocityY = (Math.random() - 0.5) * 4;
+        this.size = 2 + Math.random() * 4;
+        this.color = this.getColorByType(type);
+        this.gravity = 0.1;
+    }
+
+    getColorByType(type) {
+        switch(type) {
+            case 'dust': return '#D2691E';
+            case 'shadows': return '#4B0082';
+            case 'holy': return '#FFD700';
+            case 'sand': return '#DEB887';
+            case 'divine': return '#87CEEB';
+            case 'impact': return '#FF4500';
+            case 'collect': return '#FFD700';
+            case 'heal': return '#00FF00';
+            case 'defeat': return '#FF0000';
+            default: return '#FFFFFF';
+        }
+    }
+
+    update(deltaTime) {
+        this.x += this.velocityX;
+        this.y += this.velocityY;
+        this.velocityY += this.gravity;
+        this.life -= deltaTime * 0.001;
+        
+        if (this.life <= 0) {
+            this.life = 0;
+        }
+    }
+
+    render(ctx) {
+        if (this.life <= 0) return;
+        
+        ctx.save();
+        ctx.globalAlpha = this.life;
+        
+        const gradient = ctx.createRadialGradient(
+            this.x, this.y, 0,
+            this.x, this.y, this.size
+        );
+        gradient.addColorStop(0, this.color);
+        gradient.addColorStop(1, 'transparent');
+        
+        ctx.fillStyle = gradient;
+        ctx.fillRect(this.x - this.size/2, this.y - this.size/2, this.size, this.size);
+        
+        ctx.restore();
     }
 }
 
